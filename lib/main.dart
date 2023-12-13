@@ -1,9 +1,9 @@
 import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:food/display.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:tflite/tflite.dart';
 
 late List<CameraDescription> _cameras;
 
@@ -51,12 +51,7 @@ class _CameraAppState extends State<CameraApp> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        controller!.startImageStream((image) {
-          cameraImage = image;
-          runModel();
-        });
-      });
+      setState(() {});
     }).catchError((Object e) {
       if (e is CameraException) {
         switch (e.code) {
@@ -75,34 +70,6 @@ class _CameraAppState extends State<CameraApp> {
   void dispose() {
     controller.dispose();
     super.dispose();
-  }
-
-  runModel() async {
-    if (cameraImage != null) {
-      var predictions = await Tflite.runModelOnFrame(
-        bytesList: cameraImage!.planes.map((plane) {
-          return plane.bytes;
-        }).toList(),
-        imageHeight: cameraImage!.height,
-        imageWidth: cameraImage!.width,
-        imageMean: 127.5,
-        imageStd: 127.5,
-        rotation: 90,
-        numResults: 2,
-        threshold: 0.1,
-        asynch: true,
-      );
-      predictions!.forEach((element) {
-        setState(() {
-         final output = element['label'];
-        });
-      });
-    }
-  }
-
-  loadModel() async {
-    await Tflite.loadModel(
-        model: "assets/model.tflite", labels: "assets/label.txt");
   }
 
   Future<void> _takePicture() async {
@@ -144,9 +111,7 @@ class _CameraAppState extends State<CameraApp> {
       return Container();
     }
     return Scaffold(
-        appBar: AppBar(
-          title: const Text('Camera App'),
-        ),
+       
         body: Column(
           children: [
             Expanded(
@@ -168,13 +133,45 @@ class _CameraAppState extends State<CameraApp> {
                                   DisplayImageScreen(imagePath: file.path)));
                     },
                     child: Text('see taken pic')),
-                ElevatedButton(
-                  onPressed: _pickImage,
-                  child: const Text('Pick Image'),
-                ),
+               
               ],
             ),
+             ElevatedButton(
+          onPressed: _pickImage,
+          child: const Text('Pick Image'),
+        ),
           ],
         ));
+  }
+}
+Future<void> _takePicture() async {
+  try {
+    file = await controller.takePicture();
+
+    // Create a Dio instance
+    Dio dio = Dio();
+
+    // Create a FormData object to send the image file
+    FormData formData = FormData.fromMap({
+      'image': await MultipartFile.fromFile(file.path, filename: 'image.jpg'),
+    });
+
+    // Replace 'YOUR_BACKEND_ENDPOINT' with your actual Node.js backend API endpoint
+    String apiUrl = 'YOUR_BACKEND_ENDPOINT';
+
+    // Send the image to the backend
+    Response response = await dio.post(apiUrl, data: formData);
+
+    if (response.statusCode == 200) {
+      // Request was successful
+      print('Image uploaded successfully');
+    } else {
+      // Request failed
+      print('Failed to upload image. Status code: ${response.statusCode}');
+    }
+
+    print('Image saved to: ${file.path}');
+  } catch (e) {
+    print(e);
   }
 }
